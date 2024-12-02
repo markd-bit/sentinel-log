@@ -1,0 +1,44 @@
+name: Check base image update
+on:
+  schedule:
+    - cron: "0 1 * * *"
+
+env:
+  image: ${{ vars.DOCKER_USERNAME }}/fluentd-azure-loganalytics
+  base-image: fluent/fluentd:v1.17-debian-1
+
+jobs:
+  check-base-image:
+    runs-on: ubuntu-22.05
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check if update available
+        id: check
+        uses: clowa/docker-image-update-checker@342608bb9829d85eeeeb292e78115184b5a6657d
+        with:
+          base-image: ${{ env.base-image }}
+          image: ${{ env.image }}
+          platforms: linux/amd64,linux/arm64
+        env:
+          DEBUG: ${{ secrets.ACTIONS_STEP_DEBUG }}
+
+      - if: steps.check.outputs.needs-updating == 'true'
+        name: Repository Dispatch
+        uses: peter-evans/repository-dispatch@v2
+        with:
+          event-type: base-image-update
+          token: ${{ secrets.REPO_SCOPED_TOKEN }}
+
+      - if: steps.check.outputs.needs-updating == 'true'
+        name: Send telegram notification
+        uses: appleboy/telegram-action@v0.1.1
+        with:
+          to: ${{ secrets.TELEGRAM_CHAT_ID }}
+          token: ${{ secrets.TELEGRAM_TOKEN }}
+          format: markdown
+          message: |
+            🐳 Base image ${{ env.base-image }} of ${{ env.image }} has been updated.
+            ⚙️ Image rebuild is triggered.
+            📚 Repository: [ ${{ github.repository }} ](https://github.com/${{ github.repository }})
