@@ -16,7 +16,7 @@ jobs:
 
       - name: Check if update available
         id: check
-        uses: clowa/docker-image-update-checker@342608bb9829d85eeeeb292e78115184b5a6657d
+        uses: markd-bit/check-base-image-update.yaml@main
         with:
           base-image: ${{ env.base-image }}
           image: ${{ env.image }}
