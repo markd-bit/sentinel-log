@@ -21,7 +21,7 @@ jobs:
 
       - name: Check if update available
         id: check
-        uses: markd-bit/check-base-image-update.yaml@main
+        uses: markd-bit/docker-image-update-checker.yaml@main
         with:
           base-image: ${{ env.base-image }}
           image: ${{ env.image }}
