@@ -1,52 +1,42 @@
-name: Check Base Image Update
+name: Build and Update Azure Container Instance
 on:
   schedule:
-    - cron: "0 1 * * *"  # Schedule to run daily at 01:00 UTC
-  workflow_dispatch:  # Allows manual triggering of the workflow
-  push:
-    branches:
-      - main
-
-env:
-  image: ${{ vars.DOCKER_USERNAME }}/sentinel-log
-  base-image: chaos.azurecr.io/sentinel-log:latest
+    - cron: "0 1 * * *"  # Run daily at 1 AM UTC
 
 jobs:
-  check-base-image:
+  build-and-update-container:
     runs-on: ubuntu-22.04
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v2
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Check if update available
-        id: check
-        uses: markd-bit/docker-image-update-checker.yaml@main
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Log in to GitHub Container Registry
+        run: echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Build and push Docker image
+        run: |
+          docker build -t ghcr.io/USERNAME/REPOSITORY:latest .
+          docker push ghcr.io/USERNAME/REPOSITORY:latest
+
+      - name: Login to Azure
+        uses: azure/login@v1
         with:
-          base-image: ${{ env.base-image }}
-          image: ${{ env.image }}
-          platforms: linux/amd64,linux/arm64
-        env:
-          DEBUG: ${{ secrets.ACTIONS_STEP_DEBUG }}
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - if: steps.check.outputs.needs-updating == 'true'
-        name: Build Docker Image
-        uses: docker/build-push-action@v2
-        with:
-          push: false  # Don't push the image to Docker Hub
-          tags: ${{ env.image }}:latest
-        env:
-          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+      - name: Update ACI with new image
+        run: |
+          az container create --resource-group myResourceGroup --name mycontainer --image ghcr.io/markd-bit/sentinel-log:latest --location myLocation --os-type Linux --cpu 1 --memory 2
+          az container delete --resource-group myResourceGroup --name myOldContainer --yes
 
-      - if: steps.check.outputs.needs-updating == 'true'
-        name: Send Telegram Notification
+      - name: Send notification
         uses: appleboy/telegram-action@v0.1.1
         with:
           to: ${{ secrets.TELEGRAM_CHAT_ID }}
           token: ${{ secrets.TELEGRAM_TOKEN }}
           format: markdown
           message: |
-            🐳 Base image ${{ env.base-image }} of ${{ env.image }} has been updated.
-            ⚙️ Image rebuild is triggered.
-            📚 Repository: [${{ github.repository }}](https://github.com/${{ github.repository }})
+            🐳 Azure Container Instance `mycontainer` has been updated to the latest image.
+            🗑️ Old container instance `myOldContainer` has been removed.
