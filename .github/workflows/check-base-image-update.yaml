@@ -4,7 +4,7 @@ on:
     - cron: "0 1 * * *"
 
 env:
-  image: ${{ vars.DOCKER_USERNAME }}/fluentd-azure-loganalytics
+  image: ${{ vars.DOCKER_USERNAME }}/sentinel-log
   base-image: fluent/fluentd:v1.17-debian-1
 
 jobs:
