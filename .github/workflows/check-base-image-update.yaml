@@ -1,7 +1,11 @@
-name: Check base image update
+name: Build and Push Docker Image
 on:
   schedule:
-    - cron: "0 1 * * *"
+    - cron: "0 1 * * *"  # Schedule to run daily at 01:00 UTC
+  workflow_dispatch:  # Allows manual triggering of the workflow
+  push:
+    branches:
+      - main
 
 env:
   image: ${{ vars.DOCKER_USERNAME }}/sentinel-log
@@ -10,9 +14,10 @@ env:
 jobs:
   check-base-image:
     runs-on: ubuntu-22.04
+
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v2
 
       - name: Check if update available
         id: check
@@ -25,14 +30,17 @@ jobs:
           DEBUG: ${{ secrets.ACTIONS_STEP_DEBUG }}
 
       - if: steps.check.outputs.needs-updating == 'true'
-        name: Repository Dispatch
-        uses: peter-evans/repository-dispatch@v2
+        name: Build and Push Docker Image
+        uses: docker/build-push-action@v2
         with:
-          event-type: base-image-update
-          token: ${{ secrets.REPO_SCOPED_TOKEN }}
+          push: true
+          tags: ${{ env.image }}:latest
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
 
       - if: steps.check.outputs.needs-updating == 'true'
-        name: Send telegram notification
+        name: Send Telegram Notification
         uses: appleboy/telegram-action@v0.1.1
         with:
           to: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -41,4 +49,5 @@ jobs:
           message: |
             🐳 Base image ${{ env.base-image }} of ${{ env.image }} has been updated.
             ⚙️ Image rebuild is triggered.
-            📚 Repository: [ ${{ github.repository }} ](https://github.com/${{ github.repository }})
+            📚 Repository: [${{ github.repository }}](https://github.com/${{ github.repository }})
+
